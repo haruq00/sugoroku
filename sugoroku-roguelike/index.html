@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>すごろく×ローグライク プロトタイプ</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="game-root">
+    <div id="game-container">
+
+      <!-- 画面全体に効果を出すための演出レイヤー（ゴールド獲得時の黄色フラッシュなど） -->
+      <div id="screen-flash"></div>
+      <div id="money-effect-layer"></div>
+
+      <!-- 最上部ステータスUI -->
+      <div id="status-bar">
+        <span id="status-game">GAME 1</span>
+        <span class="sep">|</span>
+        <span id="status-round">ROUND 1/5</span>
+        <span class="sep">|</span>
+        <span id="status-gold">GOLD 0/120</span>
+        <span class="sep">|</span>
+        <span id="status-kill">KILL 0/2</span>
+        <span class="sep">|</span>
+        <span id="status-medal">MEDAL 0</span>
+        <span id="status-clearready" class="clear-ready-badge hidden">CLEAR READY</span>
+      </div>
+
+      <!-- 上段：戦闘・演出エリア（約58%）。敵のみを中央揃えで表示する -->
+      <div id="battle-area">
+        <!-- マスに停止した時の効果を文章で表示するバナー（コインの演出とは重ならない中央上部に配置） -->
+        <div id="tile-message-banner"></div>
+        <div id="enemy-row" class="hidden"></div>
+        <div id="effect-layer"></div>
+      </div>
+
+      <!-- 下段：すごろく盤エリア（約42%）。盤は左寄せ、右側にサイコロスペース -->
+      <div id="board-area">
+        <div id="board-track"></div>
+        <div id="dice-panel">
+          <div id="dice-faces"></div>
+          <div id="dice-total">合計 <span id="dice-total-value">-</span></div>
+          <button id="dice-button" class="pixel-btn">サイコロを振る</button>
+        </div>
+      </div>
+
+      <!-- ゲーム終了時のオーバーレイ -->
+      <div id="result-overlay" class="hidden">
+        <div id="result-panel" class="pixel-frame">
+          <div id="result-title"></div>
+          <div id="result-detail"></div>
+          <button id="result-next-btn" class="hidden pixel-btn">NEXT GAME</button>
+          <button id="result-retry-btn" class="hidden pixel-btn">最初からやり直す</button>
+        </div>
+      </div>
+
+      <!-- パッシブ選択／カード選択の共用オーバーレイ -->
+      <div id="choice-overlay" class="hidden">
+        <div id="choice-panel" class="pixel-frame">
+          <div id="choice-title"></div>
+          <div id="choice-options"></div>
+        </div>
+      </div>
+
+      <!-- ショップ：武器・お守りの購入、リロール、所持カード/お守りの削除 -->
+      <div id="shop-overlay" class="hidden">
+        <div id="shop-panel" class="pixel-frame">
+          <div id="shop-header">
+            <div id="shop-title">SHOP</div>
+            <div id="shop-gold">所持金: <span id="shop-gold-value">0</span>G</div>
+            <button id="shop-close-btn" class="pixel-btn">閉じる</button>
+          </div>
+          <div id="shop-body">
+            <div class="shop-section">
+              <div class="shop-section-title">武器（1つだけ装備できます）</div>
+              <div id="shop-weapon-list"></div>
+            </div>
+            <div class="shop-section">
+              <div class="shop-section-title">お守り</div>
+              <div id="shop-omamori-list"></div>
+            </div>
+            <button id="shop-reroll-btn" class="pixel-btn">品揃えをリロール (<span id="shop-reroll-cost">30</span>G)</button>
+            <div class="shop-section">
+              <div class="shop-section-title">所持アイテムの削除（1つ <span id="shop-delete-cost">40</span>G）</div>
+              <div id="shop-owned-list"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 左端：ステータス・カード・パッシブ・お守りを確認するメニュー -->
+  <button id="menu-toggle-btn" class="pixel-btn">MENU</button>
+  <!-- 右上：デバッグパネルの開閉 -->
+  <button id="debug-toggle-btn" class="pixel-btn">DEBUG</button>
+  <div id="menu-overlay" class="hidden">
+    <div id="menu-panel" class="pixel-frame">
+      <div id="menu-header">
+        <div id="menu-tabs">
+          <button class="menu-tab-btn active" data-tab="status">ステータス</button>
+          <button class="menu-tab-btn" data-tab="cards">カード</button>
+          <button class="menu-tab-btn" data-tab="passives">パッシブ</button>
+          <button class="menu-tab-btn" data-tab="omamori">お守り</button>
+        </div>
+        <button id="menu-close-btn" class="pixel-btn">×</button>
+      </div>
+      <div id="menu-content"></div>
+    </div>
+  </div>
+
+  <!-- デバッグパネル -->
+  <div id="debug-panel" class="hidden pixel-frame">
+    <div id="debug-header">
+      <span>DEBUG</span>
+      <button id="debug-close-btn" class="pixel-btn">×</button>
+    </div>
+    <div id="debug-content"></div>
+    <div id="debug-dice-force">
+      <span>強制出目:</span>
+      <button class="debug-dice-btn" data-value="1">1</button>
+      <button class="debug-dice-btn" data-value="2">2</button>
+      <button class="debug-dice-btn" data-value="3">3</button>
+      <button class="debug-dice-btn" data-value="4">4</button>
+      <button class="debug-dice-btn" data-value="5">5</button>
+      <button class="debug-dice-btn" data-value="6">6</button>
+      <button class="debug-dice-btn" data-value="clear">解除</button>
+    </div>
+    <div id="debug-stat-editor">
+      <span>ATK:</span>
+      <button class="debug-stat-btn" data-stat="attack" data-delta="-5">-5</button>
+      <button class="debug-stat-btn" data-stat="attack" data-delta="5">+5</button>
+      <span>CRIT:</span>
+      <button class="debug-stat-btn" data-stat="criticalRate" data-delta="-0.05">-5%</button>
+      <button class="debug-stat-btn" data-stat="criticalRate" data-delta="0.05">+5%</button>
+    </div>
+    <div id="debug-log"></div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/rarity.js"></script>
+  <script src="js/assets.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/events.js"></script>
+  <script src="js/board.js"></script>
+  <script src="js/dice.js"></script>
+  <script src="js/combat.js"></script>
+  <script src="js/shop.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/menu.js"></script>
+  <script src="js/debug.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
