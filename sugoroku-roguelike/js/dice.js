@@ -37,9 +37,9 @@ const DiceUI = {
   // ダイスの個数に応じてサイズを自動調整する。
   // 1個なら大きめ(74px)、増えるほど小さくなるが、最小34pxは下回らない。
   calcSize(count) {
-    const base = 74;
+    const base = 60; // 下右パネルの高さに収まるよう、1個の時の基準サイズを少し抑えている
     const size = Math.floor(base / Math.sqrt(count));
-    return Math.max(34, Math.min(base, size));
+    return Math.max(30, Math.min(base, size));
   },
 
   // 1〜6の目を3×3グリッドのドットで表現する（本物のサイコロの目のパターン）

@@ -16,17 +16,26 @@ const UI = {
   renderAll() {
     this.updateStatusBar();
     this.hideEnemies();
-    this.hideClearReady();
     this.hideResult();
   },
 
   updateStatusBar() {
     document.getElementById("status-game").textContent = `GAME ${GameState.gameIndex + 1}`;
     document.getElementById("status-round").textContent = `ROUND ${GameState.round}/${CONFIG.MAX_ROUNDS}`;
-    document.getElementById("status-gold").textContent = `GOLD ${GameState.earnedGold}/${GameState.goldQuota}`;
-    document.getElementById("status-kill").textContent = `KILL ${GameState.kills}/${GameState.killQuota}`;
+    document.getElementById("status-gold").textContent = `GOLD ${CONFIG.formatNumber(GameState.walletGold)}`;
     document.getElementById("status-medal").textContent = `MEDAL ${GameState.medals}`;
+    this.updateHpBar();
     Debug.refresh();
+  },
+
+  // プレイヤーのHP表示（数値＋ゲージ）を更新する。ゲージはCSSのtransitionで
+  // なめらかに減る／増えるようにしている。
+  updateHpBar() {
+    const p = GameState.player;
+    if (!p) return;
+    const pct = Math.max(0, Math.min(100, (p.currentHp / p.maxHp) * 100));
+    document.getElementById("status-hp").textContent = `HP ${Math.max(0, p.currentHp)}/${p.maxHp}`;
+    document.getElementById("player-hp-bar-inner").style.width = `${pct}%`;
   },
 
   setDiceButtonEnabled(enabled) {
@@ -35,13 +44,6 @@ const UI = {
 
   showDiceTotal(total) {
     document.getElementById("dice-total-value").textContent = total;
-  },
-
-  showClearReady() {
-    document.getElementById("status-clearready").classList.remove("hidden");
-  },
-  hideClearReady() {
-    document.getElementById("status-clearready").classList.add("hidden");
   },
 
   // 上部の戦闘演出エリア「全体」に浮かび上がるテキスト（MEDAL +1など、敵に紐付かないもの）
@@ -61,6 +63,56 @@ const UI = {
     this.retriggerAnimation(banner, "show", 1400);
   },
 
+  // マスイベントの大きなアイコンを一瞬だけ表示する（💰💎⚠️など）
+  showTileEventIcon(icon) {
+    const el = document.getElementById("tile-event-icon");
+    el.textContent = icon;
+    this.retriggerAnimation(el, "show", 700);
+  },
+
+  // GOAL/START通過演出：「LAP! / MEDAL +1」を上画面に表示する
+  showGoalPassedEffect() {
+    this.showEffect("LAP!", "lap-text");
+    this.showEffect("MEDAL +1", "medal-popup");
+  },
+
+  // ---------------------------------------------------------
+  // 未来位置表示：サイコロを振る前に、1〜6マス先の停止マスを
+  // 盤面上に小さく表示する（仕様6）。
+  // ---------------------------------------------------------
+  // BONUS TARGET（達成は任意）を下右パネルに表示する
+  showMission(mission) {
+    document.getElementById("status-mission").textContent = `TARGET: ${mission.label}`;
+  },
+
+  showLookahead(futurePositions) {
+    this.hideLookahead();
+    const track = document.getElementById("board-track");
+    futurePositions.forEach(({ steps, index }) => {
+      const pos = Board.tilePositions[index];
+      if (!pos) return;
+      const marker = document.createElement("div");
+      marker.className = "lookahead-marker";
+      marker.textContent = steps;
+      marker.style.left = `${pos.x + Board.tileSize / 2}px`;
+      marker.style.top = `${pos.y}px`;
+      track.appendChild(marker);
+    });
+  },
+  hideLookahead() {
+    document.querySelectorAll(".lookahead-marker").forEach((el) => el.remove());
+  },
+
+  // ENEMY TURN：プレイヤーが受けたダメージの数字を表示する
+  // （被弾モーション自体はPlayerView.playHurtPulse()が担当する）
+  showPlayerDamaged(damage) {
+    const el = document.createElement("div");
+    el.className = "floating-effect player-damage-text";
+    el.textContent = `-${damage}`;
+    document.getElementById("player-zone").appendChild(el);
+    setTimeout(() => el.remove(), 900);
+  },
+
   // class を一瞬だけ再付与してCSSアニメーションを再生させる共通処理
   // （同じ演出を連続で発生させても毎回頭からアニメーションし直すため）
   retriggerAnimation(element, className, duration) {
@@ -75,18 +127,24 @@ const UI = {
   // 敵表示（複数体対応）
   // ---------------------------------------------------------
 
-  // 戦闘開始：enemies配列ぶんのスロットを敵表示エリアに作る
-  showEnemies(enemies) {
+  // 戦闘開始：enemies配列ぶんのスロットを敵表示エリアに作る。
+  // 敵が複数いる場合、クリックで攻撃対象を選択できるようにする
+  // （onSelectTargetにslotIndexを渡す。1体だけの時もクリック自体は有効）。
+  showEnemies(enemies, onSelectTarget) {
     const row = document.getElementById("enemy-row");
     row.innerHTML = "";
     this.enemySlotEls = {};
 
     const size = this.calcEnemySpriteSize(enemies.length);
+    const multiTarget = enemies.length > 1;
 
     enemies.forEach((enemy) => {
       const slot = document.createElement("div");
-      slot.className = "enemy-slot";
+      slot.className = `enemy-slot${multiTarget ? " selectable" : ""}`;
       slot.id = `enemy-slot-${enemy.slotIndex}`;
+      if (multiTarget && onSelectTarget) {
+        slot.addEventListener("click", () => onSelectTarget(enemy.slotIndex));
+      }
 
       const spriteWrap = document.createElement("div");
       spriteWrap.className = "enemy-sprite-wrap spawn-in";
@@ -108,10 +166,15 @@ const UI = {
       const effectLayer = document.createElement("div");
       effectLayer.className = "enemy-effect-layer";
 
+      const targetMark = document.createElement("div");
+      targetMark.className = "enemy-target-mark";
+      targetMark.textContent = "▼";
+
       spriteWrap.appendChild(sprite);
       spriteWrap.appendChild(damageOverlay);
       spriteWrap.appendChild(slash);
       spriteWrap.appendChild(effectLayer);
+      spriteWrap.appendChild(targetMark);
 
       const nameEl = document.createElement("div");
       nameEl.className = "enemy-name";
@@ -141,6 +204,14 @@ const UI = {
     });
 
     row.classList.remove("hidden");
+    if (enemies.length > 0) this.highlightTarget(enemies[0].slotIndex);
+  },
+
+  // 選択中の攻撃対象を視覚的に示す（他の敵の強調は解除する）
+  highlightTarget(slotIndex) {
+    Object.keys(this.enemySlotEls).forEach((key) => {
+      this.enemySlotEls[key].slot.classList.toggle("targeted", Number(key) === slotIndex);
+    });
   },
 
   // 敵の人数に応じてスプライトサイズを自動調整する（多いほど小さく）
@@ -200,12 +271,6 @@ const UI = {
     if (els) els.slot.classList.add("enemy-defeated");
   },
 
-  showEscape(enemy) {
-    this.showEnemyEffect(enemy, "ESCAPED", "escape-text");
-    const els = this.enemySlotEls[enemy.slotIndex];
-    if (els) els.slot.classList.add("enemy-defeated");
-  },
-
   hideEnemies() {
     document.getElementById("enemy-row").innerHTML = "";
     document.getElementById("enemy-row").classList.add("hidden");
@@ -236,27 +301,59 @@ const UI = {
   },
 
   // ---------------------------------------------------------
-  // 結果オーバーレイ（CLEAR / PERFECT CLEAR / GAME OVER）
+  // GAME完了画面（5ラウンド終了時。ミッション結果と報酬を表示する。
+  // プレイヤーが生きている限り必ずNEXT GAMEへ進める＝クリア条件ではない）
   // ---------------------------------------------------------
-  showResult(title, cleared, perfect) {
+  showGameSummary(stats) {
     const overlay = document.getElementById("result-overlay");
     const titleEl = document.getElementById("result-title");
     const detailEl = document.getElementById("result-detail");
     const nextBtn = document.getElementById("result-next-btn");
     const retryBtn = document.getElementById("result-retry-btn");
+    const homeBtn = document.getElementById("result-home-btn");
 
-    titleEl.textContent = title;
-    titleEl.className = perfect ? "perfect" : cleared ? "clear" : "gameover";
-    detailEl.textContent =
-      `獲得金額: ${GameState.earnedGold}/${GameState.goldQuota}　討伐数: ${GameState.kills}/${GameState.killQuota}`;
+    titleEl.textContent = `GAME ${stats.gameNumber} COMPLETE`;
+    titleEl.className = stats.missionAchieved ? "perfect" : "clear";
 
-    if (cleared) {
-      nextBtn.classList.remove("hidden");
-      retryBtn.classList.add("hidden");
-    } else {
-      nextBtn.classList.add("hidden");
-      retryBtn.classList.remove("hidden");
-    }
+    const missionLine = stats.missionLabel && stats.missionLabel !== "-"
+      ? `BONUS TARGET: ${stats.missionLabel}<br>結果: ${stats.missionAchieved ? "CLEAR！宝箱を獲得" : "MISS（進行には影響なし）"}<br>`
+      : "";
+
+    detailEl.innerHTML = `
+      ${missionLine}
+      🎁 +${stats.reward}G
+    `;
+
+    nextBtn.classList.remove("hidden");
+    retryBtn.classList.add("hidden");
+    homeBtn.classList.add("hidden");
+    overlay.classList.remove("hidden");
+  },
+
+  // ---------------------------------------------------------
+  // GAME OVER画面（プレイヤーHPが0以下になった時だけ表示する）
+  // ---------------------------------------------------------
+  showGameOverScreen(stats) {
+    const overlay = document.getElementById("result-overlay");
+    const titleEl = document.getElementById("result-title");
+    const detailEl = document.getElementById("result-detail");
+    const nextBtn = document.getElementById("result-next-btn");
+    const retryBtn = document.getElementById("result-retry-btn");
+    const homeBtn = document.getElementById("result-home-btn");
+
+    titleEl.textContent = "GAME OVER";
+    titleEl.className = "gameover";
+    detailEl.innerHTML = `
+      到達GAME: ${stats.reachedGame}<br>
+      討伐数: ${stats.kills}<br>
+      獲得金額: ${stats.gold}G<br>
+      周回数: ${stats.laps}<br>
+      ボス撃破数: ${stats.bossKills}
+    `;
+
+    nextBtn.classList.add("hidden");
+    retryBtn.classList.remove("hidden");
+    homeBtn.classList.remove("hidden");
     overlay.classList.remove("hidden");
   },
 
@@ -313,5 +410,107 @@ const UI = {
 
   hideChoiceOverlay() {
     document.getElementById("choice-overlay").classList.add("hidden");
+  },
+
+  // ---------------------------------------------------------
+  // キャラクター選択画面：ClassSystem.getAll()から動的に描画する
+  // （職業を増やす時、ここのコードは変更不要）
+  // ---------------------------------------------------------
+  renderCharacterSelect(onSelect) {
+    const list = document.getElementById("character-select-list");
+    list.innerHTML = "";
+    ClassSystem.getAll().forEach((cls) => {
+      const card = document.createElement("button");
+      card.className = "character-card pixel-frame";
+
+      const icon = document.createElement("div");
+      icon.className = "character-card-icon icon-fallback";
+      icon.textContent = cls.id === "MAGE" ? "🧙" : "⚔️";
+      AssetManager.applyToElement(icon, `character_${cls.id.toLowerCase()}`, "icon-fallback");
+      if (icon.classList.contains("has-image")) icon.textContent = "";
+
+      const name = document.createElement("div");
+      name.className = "character-card-name";
+      name.textContent = `${cls.name} (${cls.nameEn})`;
+
+      const desc = document.createElement("div");
+      desc.className = "character-card-desc";
+      desc.textContent = cls.description;
+
+      const selectBtn = document.createElement("div");
+      selectBtn.className = "character-card-select-label";
+      selectBtn.textContent = "[ SELECT ]";
+
+      card.appendChild(icon);
+      card.appendChild(name);
+      card.appendChild(desc);
+      card.appendChild(selectBtn);
+      card.addEventListener("click", () => onSelect(cls.id));
+      list.appendChild(card);
+    });
+  },
+
+  // ---------------------------------------------------------
+  // DECK確認画面：戦闘デッキ・すごろくカード・ステータスカード履歴を一覧表示する
+  // （仕様63：タグ集計でビルド方向を確認できるようにする）
+  // ---------------------------------------------------------
+  renderDeckOverlay() {
+    const player = GameState.player;
+    this.renderCardSection("deck-battle-list", "deck-battle-count", player.battleDeck, CONFIG.BATTLE_DECK_MAX);
+    this.renderCardSection("deck-board-list", "deck-board-count", player.boardCards, CONFIG.BOARD_DECK_MAX);
+    this.renderCardSection("deck-trait-list", "deck-trait-count", player.statCardHistory, player.statCardHistory.length);
+
+    const tagCounts = DeckSystem.summarizeTags(player.battleDeck.concat(player.boardCards));
+    const tagEl = document.getElementById("deck-tag-summary");
+    const sorted = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]);
+    tagEl.textContent = sorted.length > 0 ? sorted.map(([tag, count]) => `${tag} ×${count}`).join("　") : "（まだ傾向なし）";
+  },
+
+  renderCardSection(listId, countId, deck, maxSize) {
+    document.getElementById(countId).textContent = `${deck.length} / ${maxSize}`;
+    const listEl = document.getElementById(listId);
+    listEl.innerHTML = "";
+    if (deck.length === 0) {
+      listEl.innerHTML = `<div class="deck-empty">まだありません</div>`;
+      return;
+    }
+    deck.forEach((card) => {
+      const row = document.createElement("div");
+      row.className = "deck-card-row";
+      const rarityColor = ItemRarity.getColor((card.rarity || "normal").toLowerCase());
+      row.innerHTML = `
+        <div class="deck-card-name" style="color:${rarityColor}">${card.name}${card.cost != null ? ` (${card.cost}ACT)` : ""}</div>
+        <div class="deck-card-meta">${card.classType || ""} / ${(card.tags || []).join(", ")}</div>
+        <div class="deck-card-desc">${card.description}</div>
+      `;
+      listEl.appendChild(row);
+    });
+  },
+
+  showDeckOverlay() {
+    this.renderDeckOverlay();
+    document.getElementById("deck-overlay").classList.remove("hidden");
+  },
+  hideDeckOverlay() {
+    document.getElementById("deck-overlay").classList.add("hidden");
+  },
+
+  // ---------------------------------------------------------
+  // DEMO CLEAR画面（Boss2撃破後）
+  // ---------------------------------------------------------
+  showDemoClearScreen(stats) {
+    const el = document.getElementById("demo-clear-stats");
+    el.innerHTML = `
+      職業: ${stats.className}<br>
+      最終物理攻撃力: ${stats.physicalAttack} / 最終魔法攻撃力: ${stats.magicAttack}<br>
+      最大ダメージ: ${CONFIG.formatNumber(stats.maxDamage)}<br>
+      最終HP: ${stats.currentHp}/${stats.maxHp}<br>
+      所持Gold: ${CONFIG.formatNumber(stats.gold)}G<br>
+      戦闘デッキ: ${stats.battleDeckCount}枚 / すごろくカード: ${stats.boardDeckCount}枚 / 特性: ${stats.traitCount}枚<br>
+      Strong撃破数: ${stats.strongKills}<br>
+      Rare撃破数: ${stats.rareKills}<br>
+      周回数: ${stats.laps}
+    `;
+    Screens.showDemoClear();
   },
 };

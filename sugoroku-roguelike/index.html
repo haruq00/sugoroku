@@ -14,36 +14,76 @@
       <div id="screen-flash"></div>
       <div id="money-effect-layer"></div>
 
-      <!-- 最上部ステータスUI -->
-      <div id="status-bar">
-        <span id="status-game">GAME 1</span>
-        <span class="sep">|</span>
-        <span id="status-round">ROUND 1/5</span>
-        <span class="sep">|</span>
-        <span id="status-gold">GOLD 0/120</span>
-        <span class="sep">|</span>
-        <span id="status-kill">KILL 0/2</span>
-        <span class="sep">|</span>
-        <span id="status-medal">MEDAL 0</span>
-        <span id="status-clearready" class="clear-ready-badge hidden">CLEAR READY</span>
-      </div>
+      <!-- ============================================================
+           上半分：アクション演出エリア（画面の約50%）
+           「戦闘画面」ではなく「今起きていることを見せる」演出エリア。
+           左にプレイヤー、右にイベント/敵/報酬を表示する。
+           ============================================================ -->
+      <div id="action-stage" data-player-state="idle">
+        <div id="stage-sky"></div>
+        <div id="stage-ground"></div>
 
-      <!-- 上段：戦闘・演出エリア（約58%）。敵のみを中央揃えで表示する -->
-      <div id="battle-area">
-        <!-- マスに停止した時の効果を文章で表示するバナー（コインの演出とは重ならない中央上部に配置） -->
+        <!-- マスに停止した時の効果を文章で表示するバナー -->
         <div id="tile-message-banner"></div>
-        <div id="enemy-row" class="hidden"></div>
-        <div id="effect-layer"></div>
+
+        <!-- 左30〜35%：プレイヤーキャラクター -->
+        <div id="player-zone">
+          <div id="player-character" data-state="idle">
+            <div id="player-dust"></div>
+            <div id="player-sprite" class="player-fallback"></div>
+          </div>
+        </div>
+
+        <!-- 右65〜70%：イベント・敵・報酬表示 -->
+        <div id="event-zone">
+          <div id="tile-event-icon"></div>
+          <div id="enemy-row" class="hidden"></div>
+          <div id="effect-layer"></div>
+        </div>
       </div>
 
-      <!-- 下段：すごろく盤エリア（約42%）。盤は左寄せ、右側にサイコロスペース -->
-      <div id="board-area">
-        <div id="board-track"></div>
-        <div id="dice-panel">
-          <div id="dice-faces"></div>
-          <div id="dice-total">合計 <span id="dice-total-value">-</span></div>
-          <button id="dice-button" class="pixel-btn">サイコロを振る</button>
+      <!-- ============================================================
+           下半分：盤面（左70%）＋サイコロ・操作パネル（右30%）
+           ============================================================ -->
+      <div id="bottom-row">
+
+        <!-- 下左：すごろく全体マップ -->
+        <div id="board-panel">
+          <div id="board-track"></div>
         </div>
+
+        <!-- 下右：サイコロ・操作・情報パネル -->
+        <div id="side-panel">
+          <div id="side-stats">
+            <div class="side-stat-line"><span id="status-game">GAME 1</span></div>
+            <div class="side-stat-line"><span id="status-round">ROUND 1/5</span></div>
+            <div class="side-stat-line stat-hp-line">
+              <span id="status-hp">HP 100/100</span>
+              <div id="player-hp-bar-outer"><div id="player-hp-bar-inner"></div></div>
+            </div>
+            <div class="side-stat-line stat-gold"><span id="status-gold">GOLD 0</span></div>
+            <div class="side-stat-line stat-medal"><span id="status-medal">MEDAL 0</span></div>
+            <div class="side-stat-line stat-mission"><span id="status-mission">TARGET: -</span></div>
+          </div>
+
+          <div id="dice-panel">
+            <div id="dice-faces"></div>
+            <div id="dice-total">合計 <span id="dice-total-value">-</span></div>
+            <button id="dice-button" class="pixel-btn">サイコロを振る</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- カードバトル中の手札・ACTION表示。下半分（#bottom-rowの上）に重ねて
+           表示し、手札は上から下へリスト表示する（戦闘中だけ表示）。 -->
+      <div id="battle-hand-area" class="hidden">
+        <div id="battle-hand-header">
+          <div id="battle-skill-gauge"></div>
+          <div id="battle-action-points"></div>
+          <button id="battle-end-turn-btn" class="pixel-btn">END TURN</button>
+          <button id="battle-retreat-btn" class="pixel-btn hidden">RETREAT</button>
+        </div>
+        <div id="battle-hand"></div>
       </div>
 
       <!-- ゲーム終了時のオーバーレイ -->
@@ -52,7 +92,8 @@
           <div id="result-title"></div>
           <div id="result-detail"></div>
           <button id="result-next-btn" class="hidden pixel-btn">NEXT GAME</button>
-          <button id="result-retry-btn" class="hidden pixel-btn">最初からやり直す</button>
+          <button id="result-retry-btn" class="hidden pixel-btn">RETRY（同じ職業で再挑戦）</button>
+          <button id="result-home-btn" class="hidden pixel-btn">HOME</button>
         </div>
       </div>
 
@@ -73,17 +114,33 @@
             <button id="shop-close-btn" class="pixel-btn">閉じる</button>
           </div>
           <div id="shop-body">
+            <button id="shop-reroll-btn" class="pixel-btn">品揃えをリロール (<span id="shop-reroll-cost">50</span>G)</button>
+            <div class="shop-section">
+              <div class="shop-section-title">アクションカード</div>
+              <div id="shop-action-list"></div>
+            </div>
+            <div class="shop-section">
+              <div class="shop-section-title">ステータス強化カード</div>
+              <div id="shop-stat-list"></div>
+            </div>
+            <div class="shop-section">
+              <div class="shop-section-title">すごろくカード（最大8枚）</div>
+              <div id="shop-board-list"></div>
+            </div>
             <div class="shop-section">
               <div class="shop-section-title">武器（1つだけ装備できます）</div>
               <div id="shop-weapon-list"></div>
             </div>
             <div class="shop-section">
-              <div class="shop-section-title">お守り</div>
-              <div id="shop-omamori-list"></div>
+              <div class="shop-section-title">防具（最大2つ）</div>
+              <div id="shop-armor-list"></div>
             </div>
-            <button id="shop-reroll-btn" class="pixel-btn">品揃えをリロール (<span id="shop-reroll-cost">30</span>G)</button>
             <div class="shop-section">
-              <div class="shop-section-title">所持アイテムの削除（1つ <span id="shop-delete-cost">40</span>G）</div>
+              <div class="shop-section-title">お守り（最大3つ）</div>
+              <div id="shop-charm-list"></div>
+            </div>
+            <div class="shop-section">
+              <div class="shop-section-title">アクションカードの削除（1枚 <span id="shop-delete-cost">150</span>G）</div>
               <div id="shop-owned-list"></div>
             </div>
           </div>
@@ -95,6 +152,8 @@
 
   <!-- 左端：ステータス・カード・パッシブ・お守りを確認するメニュー -->
   <button id="menu-toggle-btn" class="pixel-btn">MENU</button>
+  <!-- 左端2つ目：所持デッキ・MAIN ATTACK確認 -->
+  <button id="deck-toggle-btn" class="pixel-btn">DECK</button>
   <!-- 右上：デバッグパネルの開閉 -->
   <button id="debug-toggle-btn" class="pixel-btn">DEBUG</button>
   <div id="menu-overlay" class="hidden">
@@ -102,9 +161,9 @@
       <div id="menu-header">
         <div id="menu-tabs">
           <button class="menu-tab-btn active" data-tab="status">ステータス</button>
-          <button class="menu-tab-btn" data-tab="cards">カード</button>
-          <button class="menu-tab-btn" data-tab="passives">パッシブ</button>
-          <button class="menu-tab-btn" data-tab="omamori">お守り</button>
+          <button class="menu-tab-btn" data-tab="equipment">装備</button>
+          <button class="menu-tab-btn" data-tab="passives">Bossパッシブ</button>
+          <button class="menu-tab-btn" data-tab="statcards">ステータスカード履歴</button>
         </div>
         <button id="menu-close-btn" class="pixel-btn">×</button>
       </div>
@@ -112,7 +171,7 @@
     </div>
   </div>
 
-  <!-- デバッグパネル -->
+  <!-- デバッグパネル（通常プレイ時は目立たせない。折りたたみ式で右上ボタンから開閉） -->
   <div id="debug-panel" class="hidden pixel-frame">
     <div id="debug-header">
       <span>DEBUG</span>
@@ -131,25 +190,103 @@
     </div>
     <div id="debug-stat-editor">
       <span>ATK:</span>
-      <button class="debug-stat-btn" data-stat="attack" data-delta="-5">-5</button>
-      <button class="debug-stat-btn" data-stat="attack" data-delta="5">+5</button>
+      <button class="debug-stat-btn" data-stat="physicalAttack" data-delta="-5">-5</button>
+      <button class="debug-stat-btn" data-stat="physicalAttack" data-delta="5">+5</button>
       <span>CRIT:</span>
       <button class="debug-stat-btn" data-stat="criticalRate" data-delta="-0.05">-5%</button>
       <button class="debug-stat-btn" data-stat="criticalRate" data-delta="0.05">+5%</button>
+      <span>DEF:</span>
+      <button class="debug-stat-btn" data-stat="defense" data-delta="-2">-2</button>
+      <button class="debug-stat-btn" data-stat="defense" data-delta="2">+2</button>
+      <span>HP:</span>
+      <button class="debug-stat-btn" data-stat="currentHp" data-delta="-10">-10</button>
+      <button class="debug-stat-btn" data-stat="currentHp" data-delta="10">+10</button>
     </div>
     <div id="debug-log"></div>
   </div>
 
+  <!-- ============================================================
+       HOME画面（起動直後に表示。PLAYでキャラクター選択へ）
+       ============================================================ -->
+  <div id="home-screen" class="full-screen">
+    <div class="home-inner pixel-frame">
+      <div id="home-title">すごろく×ローグライク</div>
+      <div id="home-subtitle">DEMO（GAME1〜20 / BOSS2撃破まで）</div>
+      <button id="home-play-btn" class="pixel-btn home-menu-btn">[ PLAY ]</button>
+      <button class="pixel-btn home-menu-btn" disabled>[ COLLECTION ] Coming Soon</button>
+      <button class="pixel-btn home-menu-btn" disabled>[ SETTING ] Coming Soon</button>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       キャラクター選択画面（ClassSystem.getAll()から動的に描画される）
+       ============================================================ -->
+  <div id="character-select-screen" class="full-screen hidden">
+    <div class="character-select-inner">
+      <div id="character-select-title">CHARACTER SELECT</div>
+      <div id="character-select-list"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       DEMO CLEAR画面（Game20のBoss2撃破後に表示）
+       ============================================================ -->
+  <div id="demo-clear-screen" class="full-screen hidden">
+    <div class="demo-clear-inner pixel-frame">
+      <div id="demo-clear-title">DEMO CLEAR</div>
+      <div id="demo-clear-stats"></div>
+      <button id="demo-clear-home-btn" class="pixel-btn">HOMEへ戻る</button>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       DECK確認オーバーレイ（ゲーム中いつでも確認できる。常時表示ではない）
+       戦闘デッキ・すごろくカード・特性カードの3種類を切り替えて確認する。
+       ============================================================ -->
+  <div id="deck-overlay" class="hidden">
+    <div id="deck-panel" class="pixel-frame">
+      <div id="deck-header">
+        <div id="deck-tabs">
+          <button class="deck-tab-btn active" data-tab="battle">戦闘<span id="deck-battle-count"></span></button>
+          <button class="deck-tab-btn" data-tab="board">すごろく<span id="deck-board-count"></span></button>
+          <button class="deck-tab-btn" data-tab="trait">ステータス履歴<span id="deck-trait-count"></span></button>
+        </div>
+        <button id="deck-close-btn" class="pixel-btn">×</button>
+      </div>
+      <div id="deck-tag-summary"></div>
+      <div id="deck-battle-list" class="deck-tab-content"></div>
+      <div id="deck-board-list" class="deck-tab-content hidden"></div>
+      <div id="deck-trait-list" class="deck-tab-content hidden"></div>
+    </div>
+  </div>
+
   <script src="js/config.js"></script>
   <script src="js/rarity.js"></script>
+  <script src="js/classes.js"></script>
+  <script src="js/battleCards.js"></script>
+  <script src="js/boardCards.js"></script>
+  <script src="js/statCards.js"></script>
+  <script src="js/weapons.js"></script>
+  <script src="js/armor.js"></script>
+  <script src="js/charms.js"></script>
+  <script src="js/passives.js"></script>
   <script src="js/assets.js"></script>
   <script src="js/sound.js"></script>
   <script src="js/events.js"></script>
+  <script src="js/animation.js"></script>
+  <script src="js/deckSystem.js"></script>
+  <script src="js/cardEffectSystem.js"></script>
+  <script src="js/battleSystem.js"></script>
+  <script src="js/missionSystem.js"></script>
+  <script src="js/rewardSystem.js"></script>
+  <script src="js/screens.js"></script>
   <script src="js/board.js"></script>
   <script src="js/dice.js"></script>
   <script src="js/combat.js"></script>
   <script src="js/shop.js"></script>
+  <script src="js/playerView.js"></script>
   <script src="js/ui.js"></script>
+  <script src="js/battleUI.js"></script>
   <script src="js/menu.js"></script>
   <script src="js/debug.js"></script>
   <script src="js/game.js"></script>

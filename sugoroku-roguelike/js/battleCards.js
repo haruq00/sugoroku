@@ -1,0 +1,190 @@
+// ============================================================
+// battleCards.js
+// 「戦闘アクションカード」のデータ。戦闘デッキに入り、手札に来て、
+// プレイヤーが実際に使用するカードです（1枚=戦闘中の1アクション）。
+//
+// カードの形：
+//   id, name, classType(COMMON/SWORDSMAN/MAGE), rarity, tags,
+//   cost(ACTION消費数), description,
+//   hits: [{ percent, targets: "single"|"all"|"chain" }]  … ダメージ系
+//     percentは「物理攻撃力 or 魔法攻撃力」に対する割合。
+//     damageType: "physical"|"magic" を指定しない場合は、
+//     プレイヤーの職業に応じた「主武器」（剣士=物理/魔法使い=魔法）を自動で使う。
+//   effectId + effectValue … ダメージ以外、または特殊な計算が必要なもの
+//     （battleSystem.js / cardEffectSystem.js のハンドラで処理する）。
+//
+// 新しいカードを追加する時、if文を増やす必要はありません。
+// 汎用的な効果はeffect（今回はhitsとして表現）で、特殊な効果だけ
+// effectIdを新設してcardEffectSystem.jsにハンドラを1つ足してください。
+// ============================================================
+
+// ---- 汎用カード（COMMON）20枚 ----
+const COMMON_BATTLE_CARDS = [
+  { id: "b_slash_basic", name: "基本攻撃", classType: "COMMON", rarity: "normal", tags: ["DAMAGE"], cost: 1, maxCopies: 4,
+    description: "主武器で100%ダメージ。", hits: [{ percent: 1.0, targets: "single" }] },
+  { id: "b_power_strike", name: "強打", classType: "COMMON", rarity: "normal", tags: ["DAMAGE"], cost: 2, maxCopies: 3,
+    description: "主武器で170%ダメージ。", hits: [{ percent: 1.7, targets: "single" }] },
+  { id: "b_double_hit", name: "二連撃", classType: "COMMON", rarity: "normal", tags: ["MULTI"], cost: 1, maxCopies: 3,
+    description: "60%ダメージ×2ヒット。", hits: [{ percent: 0.6, targets: "single" }, { percent: 0.6, targets: "single" }] },
+  { id: "b_triple_hit", name: "三段撃", classType: "COMMON", rarity: "rare", tags: ["MULTI"], cost: 2, maxCopies: 3,
+    description: "45%ダメージ×3ヒット。", hits: [{ percent: 0.45, targets: "single" }, { percent: 0.45, targets: "single" }, { percent: 0.45, targets: "single" }] },
+  { id: "b_focus_crit", name: "会心の一撃", classType: "COMMON", rarity: "rare", tags: ["CRITICAL"], cost: 1, maxCopies: 3,
+    description: "100%ダメージ。このターンの残りクリティカル率+30%。", hits: [{ percent: 1.0, targets: "single" }],
+    effectId: "turn_crit_rate_up", effectValue: 0.30 },
+  { id: "b_concentrate", name: "集中", classType: "COMMON", rarity: "normal", tags: ["CRITICAL"], cost: 1, maxCopies: 3,
+    description: "このターンの残りクリティカルダメージ+50%。", effectId: "turn_crit_damage_up", effectValue: 0.50 },
+  { id: "b_guard", name: "ガード", classType: "COMMON", rarity: "normal", tags: ["DEFENSE"], cost: 1, maxCopies: 3,
+    description: "次に受けるダメージを50%軽減する。", effectId: "next_hit_reduction", effectValue: 0.50 },
+  { id: "b_iron_wall", name: "鉄壁", classType: "COMMON", rarity: "epic", tags: ["DEFENSE"], cost: 2, maxCopies: 2,
+    description: "次に受けるダメージを100%軽減する（1回のみ）。", effectId: "next_hit_reduction", effectValue: 1.0 },
+  { id: "b_first_aid", name: "応急手当", classType: "COMMON", rarity: "normal", tags: ["HEAL"], cost: 1, maxCopies: 3,
+    description: "最大HPの15%回復。", effectId: "heal_percent", effectValue: 0.15 },
+  { id: "b_healing_light", name: "回復の光", classType: "COMMON", rarity: "rare", tags: ["HEAL"], cost: 2, maxCopies: 3,
+    description: "最大HPの30%回復。", effectId: "heal_percent", effectValue: 0.30 },
+  { id: "b_restock", name: "カード補充", classType: "COMMON", rarity: "normal", tags: ["DRAW"], cost: 1, maxCopies: 3,
+    description: "カードを2枚引く。", effectId: "draw_cards", effectValue: 2 },
+  { id: "b_inspiration", name: "ひらめき", classType: "COMMON", rarity: "rare", tags: ["DRAW"], cost: 1, maxCopies: 2,
+    description: "カードを1枚引き、ACTION+1。", effectId: "draw_and_action", effectValue: { draw: 1, action: 1 } },
+  { id: "b_giant_hunter", name: "強者狩り", classType: "COMMON", rarity: "rare", tags: ["STRONG", "DAMAGE"], cost: 1, maxCopies: 3,
+    description: "Strongな敵に150%、それ以外は100%のダメージ。", effectId: "conditional_damage_strong",
+    effectValue: { normalPercent: 1.0, strongPercent: 1.5 } },
+  { id: "b_treasure_hunt", name: "宝探し", classType: "COMMON", rarity: "rare", tags: ["RARE", "GOLD"], cost: 1, maxCopies: 2,
+    description: "この戦闘中、Rare以上の敵からの報酬+50%。", effectId: "battle_rare_reward_up", effectValue: 0.50 },
+  { id: "b_golden_strike", name: "金の一撃", classType: "COMMON", rarity: "normal", tags: ["GOLD", "DAMAGE"], cost: 1, maxCopies: 3,
+    description: "100%ダメージ。撃破した場合+20G。", hits: [{ percent: 1.0, targets: "single" }],
+    effectId: "bonus_gold_on_kill", effectValue: 20 },
+  { id: "b_combo_slash", name: "コンボ斬", classType: "COMMON", rarity: "rare", tags: ["COMBO", "DAMAGE"], cost: 1, maxCopies: 3,
+    description: "直前と同じタグのカードを使っていた場合150%、それ以外は100%。", effectId: "combo_tag_damage",
+    effectValue: { normalPercent: 1.0, comboPercent: 1.5 } },
+  { id: "b_all_in", name: "全力", classType: "COMMON", rarity: "epic", tags: ["DAMAGE"], cost: 2, maxCopies: 2,
+    description: "200%ダメージ。", hits: [{ percent: 2.0, targets: "single" }] },
+  { id: "b_evasive_step", name: "見切り", classType: "COMMON", rarity: "normal", tags: ["DEFENSE", "HP"], cost: 1, maxCopies: 3,
+    description: "次の敵ターン、回避率+30%。", effectId: "next_turn_evasion_up", effectValue: 0.30 },
+  { id: "b_last_resort", name: "起死回生", classType: "COMMON", rarity: "epic", tags: ["HEAL", "HP"], cost: 2, maxCopies: 2,
+    description: "最大HPの40%回復。", effectId: "heal_percent", effectValue: 0.40 },
+  { id: "b_extra_action", name: "追加行動", classType: "COMMON", rarity: "rare", tags: ["DRAW"], cost: 1, maxCopies: 2,
+    description: "ACTION+2。", effectId: "gain_action", effectValue: 2 },
+];
+
+// ---- 剣士専用カード（SWORDSMAN）15枚 ----
+const SWORDSMAN_BATTLE_CARDS = [
+  { id: "sw_slash", name: "斬撃", classType: "SWORDSMAN", rarity: "normal", tags: ["DAMAGE"], cost: 1, maxCopies: 3,
+    description: "物理攻撃100%ダメージ。", hits: [{ percent: 1.0, targets: "single", damageType: "physical" }] },
+  { id: "sw_power_slash", name: "強斬撃", classType: "SWORDSMAN", rarity: "normal", tags: ["DAMAGE"], cost: 2, maxCopies: 3,
+    description: "物理攻撃170%ダメージ。", hits: [{ percent: 1.7, targets: "single", damageType: "physical" }] },
+  { id: "sw_double_slash", name: "二連斬り", classType: "SWORDSMAN", rarity: "normal", tags: ["MULTI"], cost: 1, maxCopies: 3,
+    description: "物理攻撃70%×2ヒット。", hits: [{ percent: 0.7, targets: "single", damageType: "physical" }, { percent: 0.7, targets: "single", damageType: "physical" }] },
+  { id: "sw_triple_slash", name: "三段斬り", classType: "SWORDSMAN", rarity: "rare", tags: ["MULTI"], cost: 2, maxCopies: 3,
+    description: "物理攻撃50%×3ヒット。", hits: [{ percent: 0.5, targets: "single", damageType: "physical" }, { percent: 0.5, targets: "single", damageType: "physical" }, { percent: 0.5, targets: "single", damageType: "physical" }] },
+  { id: "sw_iai", name: "居合", classType: "SWORDSMAN", rarity: "epic", tags: ["DAMAGE", "COMBO"], cost: 2, maxCopies: 2,
+    description: "この戦闘で最初に使ったカードなら300%、それ以外は100%。", effectId: "first_card_bonus_damage",
+    effectValue: { normalPercent: 1.0, firstPercent: 3.0, damageType: "physical" } },
+  { id: "sw_cleave", name: "薙ぎ払い", classType: "SWORDSMAN", rarity: "rare", tags: ["AOE"], cost: 2, maxCopies: 2,
+    description: "敵全体に物理攻撃70%ダメージ。", hits: [{ percent: 0.7, targets: "all", damageType: "physical" }] },
+  { id: "sw_giant_slayer", name: "強敵殺し", classType: "SWORDSMAN", rarity: "rare", tags: ["STRONG", "DAMAGE"], cost: 1, maxCopies: 3,
+    description: "Strongな敵に×2、それ以外は物理攻撃100%。", effectId: "conditional_damage_strong",
+    effectValue: { normalPercent: 1.0, strongPercent: 2.0, damageType: "physical" } },
+  { id: "sw_critical_slash", name: "会心斬り", classType: "SWORDSMAN", rarity: "rare", tags: ["CRITICAL"], cost: 1, maxCopies: 3,
+    description: "このターンの残りクリティカル率+40%。", effectId: "turn_crit_rate_up", effectValue: 0.40 },
+  { id: "sw_fury_slash", name: "闘気斬", classType: "SWORDSMAN", rarity: "epic", tags: ["DAMAGE"], cost: 1, maxCopies: 2,
+    description: "物理攻撃100%＋現在の闘気1につき+20%の追加ダメージ。", effectId: "momentum_bonus_damage",
+    effectValue: { basePercent: 1.0, perMomentum: 0.20, damageType: "physical" } },
+  { id: "sw_desperate_slash", name: "背水剣", classType: "SWORDSMAN", rarity: "rare", tags: ["HP", "DAMAGE"], cost: 1, maxCopies: 3,
+    description: "HPが50%以下なら180%、それ以外は物理攻撃100%。", effectId: "low_hp_conditional_damage",
+    effectValue: { threshold: 0.50, normalPercent: 1.0, lowHpPercent: 1.8, damageType: "physical" } },
+  { id: "sw_counter_stance", name: "反撃の構え", classType: "SWORDSMAN", rarity: "epic", tags: ["DEFENSE", "COMBO"], cost: 1, maxCopies: 2,
+    description: "次の敵ターン中、被弾するたび物理攻撃25%の反撃ダメージ。", effectId: "next_turn_counter", effectValue: 0.25 },
+  { id: "sw_focus_ki", name: "闘気溜め", classType: "SWORDSMAN", rarity: "normal", tags: ["COMBO"], cost: 1, maxCopies: 3,
+    description: "闘気+2。", effectId: "gain_momentum", effectValue: 2 },
+  { id: "sw_flurry", name: "乱れ突き", classType: "SWORDSMAN", rarity: "rare", tags: ["MULTI"], cost: 2, maxCopies: 2,
+    description: "物理攻撃40%×4ヒット。", hits: [
+      { percent: 0.4, targets: "single", damageType: "physical" }, { percent: 0.4, targets: "single", damageType: "physical" },
+      { percent: 0.4, targets: "single", damageType: "physical" }, { percent: 0.4, targets: "single", damageType: "physical" }] },
+  { id: "sw_execute", name: "一刀両断", classType: "SWORDSMAN", rarity: "epic", tags: ["DAMAGE", "STRONG"], cost: 2, maxCopies: 2,
+    description: "敵HPが20%以下なら500%、それ以外は物理攻撃100%。", effectId: "execute_conditional_damage",
+    effectValue: { threshold: 0.20, normalPercent: 1.0, executePercent: 5.0, damageType: "physical" } },
+  { id: "sw_mighty_blade", name: "剛剣", classType: "SWORDSMAN", rarity: "legendary", tags: ["DAMAGE"], cost: 2, maxCopies: 1,
+    description: "物理攻撃250%ダメージ。", hits: [{ percent: 2.5, targets: "single", damageType: "physical" }] },
+  { id: "sw_five_slash", name: "五連斬り", classType: "SWORDSMAN", rarity: "epic", tags: ["MULTI"], cost: 2, maxCopies: 2,
+    description: "物理攻撃35%×5ヒット。", hits: [
+      { percent: 0.35, targets: "single", damageType: "physical" }, { percent: 0.35, targets: "single", damageType: "physical" },
+      { percent: 0.35, targets: "single", damageType: "physical" }, { percent: 0.35, targets: "single", damageType: "physical" },
+      { percent: 0.35, targets: "single", damageType: "physical" }] },
+  { id: "sw_whirlwind_slash", name: "旋風斬り", classType: "SWORDSMAN", rarity: "epic", tags: ["AOE", "MULTI"], cost: 2, maxCopies: 2,
+    description: "敵全体に物理攻撃45%×2ヒット。", hits: [
+      { percent: 0.45, targets: "all", damageType: "physical" }, { percent: 0.45, targets: "all", damageType: "physical" }] },
+  { id: "sw_piercing_slash", name: "貫通斬り", classType: "SWORDSMAN", rarity: "epic", tags: ["DAMAGE"], cost: 1, maxCopies: 2,
+    description: "物理攻撃130%。敵撃破時の余剰ダメージを次の敵へ引き継ぐ。", hits: [{ percent: 1.3, targets: "single", damageType: "physical" }],
+    effectId: "pierce_excess_damage", effectValue: true },
+  { id: "sw_blood_edge", name: "血刃", classType: "SWORDSMAN", rarity: "rare", tags: ["DAMAGE", "COMBO"], cost: 1, maxCopies: 2,
+    description: "物理攻撃100%。敵を倒すたび、その戦闘中物理ダメージ+15%。", hits: [{ percent: 1.0, targets: "single", damageType: "physical" }],
+    effectId: "stack_damage_on_kill_battle", effectValue: 0.15 },
+  { id: "sw_heaven_earth_cleave", name: "天地両断", classType: "SWORDSMAN", rarity: "legendary", tags: ["DAMAGE"], cost: 2, maxCopies: 1,
+    description: "物理攻撃350%。このターン、他の攻撃カードは使用できなくなる。", hits: [{ percent: 3.5, targets: "single", damageType: "physical" }],
+    effectId: "lockout_other_attacks_this_turn", effectValue: true },
+];
+
+// ---- 魔法使い専用カード（MAGE）15枚 ----
+const MAGE_BATTLE_CARDS = [
+  { id: "mg_fireball", name: "ファイアボール", classType: "MAGE", rarity: "normal", tags: ["DAMAGE"], cost: 1, maxCopies: 3,
+    description: "魔法攻撃120%ダメージ。", hits: [{ percent: 1.2, targets: "single", damageType: "magic" }] },
+  { id: "mg_flame_burst", name: "フレイムバースト", classType: "MAGE", rarity: "rare", tags: ["AOE"], cost: 2, maxCopies: 3,
+    description: "敵全体に魔法攻撃70%ダメージ。", hits: [{ percent: 0.7, targets: "all", damageType: "magic" }] },
+  { id: "mg_chain_lightning", name: "チェインライトニング", classType: "MAGE", rarity: "rare", tags: ["AOE", "MULTI"], cost: 2, maxCopies: 2,
+    description: "最大4体へ連鎖（100%→80%→60%→40%）。", hits: [
+      { percent: 1.0, targets: "chain", damageType: "magic" }, { percent: 0.8, targets: "chain", damageType: "magic" },
+      { percent: 0.6, targets: "chain", damageType: "magic" }, { percent: 0.4, targets: "chain", damageType: "magic" }] },
+  { id: "mg_magic_barrage", name: "魔力連弾", classType: "MAGE", rarity: "normal", tags: ["MULTI"], cost: 2, maxCopies: 3,
+    description: "魔法攻撃30%×5ヒット。", hits: [
+      { percent: 0.3, targets: "single", damageType: "magic" }, { percent: 0.3, targets: "single", damageType: "magic" },
+      { percent: 0.3, targets: "single", damageType: "magic" }, { percent: 0.3, targets: "single", damageType: "magic" },
+      { percent: 0.3, targets: "single", damageType: "magic" }] },
+  { id: "mg_meteor", name: "メテオ", classType: "MAGE", rarity: "legendary", tags: ["AOE"], cost: 2, maxCopies: 1,
+    description: "敵全体に魔法攻撃110%ダメージ。", hits: [{ percent: 1.1, targets: "all", damageType: "magic" }] },
+  { id: "mg_explosion_magic", name: "爆裂魔法", classType: "MAGE", rarity: "epic", tags: ["DAMAGE", "AOE"], cost: 2, maxCopies: 2,
+    description: "単体に魔法攻撃180%。撃破した場合、残りの敵全体に30%の追加ダメージ。",
+    hits: [{ percent: 1.8, targets: "single", damageType: "magic" }],
+    effectId: "death_explosion", effectValue: { percent: 0.30, damageType: "magic" } },
+  { id: "mg_resonance_boost", name: "魔力共鳴付与", classType: "MAGE", rarity: "rare", tags: ["COMBO"], cost: 1, maxCopies: 2,
+    description: "この戦闘中、魔力共鳴の上昇量+10%。", effectId: "battle_resonance_boost", effectValue: 0.10 },
+  { id: "mg_double_cast", name: "多重詠唱", classType: "MAGE", rarity: "epic", tags: ["COMBO"], cost: 1, maxCopies: 2,
+    description: "次に使う魔法カードの効果が2回発動する。", effectId: "double_next_spell", effectValue: true },
+  { id: "mg_golden_magic", name: "黄金魔法", classType: "MAGE", rarity: "rare", tags: ["RARE", "GOLD", "DAMAGE"], cost: 1, maxCopies: 2,
+    description: "魔法攻撃100%。Rare以上の敵になら+50%ダメージ＆撃破時+30G。", effectId: "rare_bonus_damage_and_gold",
+    effectValue: { basePercent: 1.0, rareBonusPercent: 0.50, bonusGold: 30, damageType: "magic" } },
+  { id: "mg_frost_bolt", name: "氷結弾", classType: "MAGE", rarity: "normal", tags: ["DAMAGE", "DEFENSE"], cost: 1, maxCopies: 3,
+    description: "魔法攻撃90%。次の敵ターンの被ダメージ-30%。", hits: [{ percent: 0.9, targets: "single", damageType: "magic" }],
+    effectId: "next_turn_damage_reduction", effectValue: 0.30 },
+  { id: "mg_mana_drain", name: "マナドレイン", classType: "MAGE", rarity: "rare", tags: ["HP", "DAMAGE"], cost: 1, maxCopies: 3,
+    description: "魔法攻撃60%。与えたダメージの30%を回復。", hits: [{ percent: 0.6, targets: "single", damageType: "magic" }],
+    effectId: "lifesteal_from_hit", effectValue: 0.30 },
+  { id: "mg_spirit_ward", name: "精霊の加護", classType: "MAGE", rarity: "normal", tags: ["HEAL", "DEFENSE"], cost: 1, maxCopies: 3,
+    description: "最大HPの20%回復。このターンの残り、被ダメージ-20%。", effectId: "heal_and_turn_defense",
+    effectValue: { healPercent: 0.20, defenseReduction: 0.20 } },
+  { id: "mg_chain_blast", name: "連鎖爆破", classType: "MAGE", rarity: "epic", tags: ["AOE", "DAMAGE"], cost: 1, maxCopies: 2,
+    description: "単体に魔法攻撃100%。撃破した場合、残りの敵全体に40%の追加ダメージ。",
+    hits: [{ percent: 1.0, targets: "single", damageType: "magic" }],
+    effectId: "death_explosion", effectValue: { percent: 0.40, damageType: "magic" } },
+  { id: "mg_overload", name: "過負荷", classType: "MAGE", rarity: "epic", tags: ["DAMAGE", "HP"], cost: 2, maxCopies: 2,
+    description: "魔法攻撃200%。使用後、最大HPの5%を消費（HP1未満にはならない）。",
+    hits: [{ percent: 2.0, targets: "single", damageType: "magic" }],
+    effectId: "self_hp_cost_percent", effectValue: 0.05 },
+  { id: "mg_spell_draw", name: "スペルドロー", classType: "MAGE", rarity: "rare", tags: ["DRAW"], cost: 1, maxCopies: 2,
+    description: "カードを3枚引き、ACTION+1。", effectId: "draw_and_action", effectValue: { draw: 3, action: 1 } },
+  { id: "mg_inferno", name: "インフェルノ", classType: "MAGE", rarity: "legendary", tags: ["AOE"], cost: 2, maxCopies: 1,
+    description: "敵全体に魔法攻撃120%ダメージ。", hits: [{ percent: 1.2, targets: "all", damageType: "magic" }] },
+  { id: "mg_lightning", name: "ライトニング", classType: "MAGE", rarity: "rare", tags: ["DAMAGE", "CRITICAL"], cost: 1, maxCopies: 2,
+    description: "魔法攻撃150%。このターンの残りクリティカル率+20%。", hits: [{ percent: 1.5, targets: "single", damageType: "magic" }],
+    effectId: "turn_crit_rate_up", effectValue: 0.20 },
+  { id: "mg_thunderstorm", name: "サンダーストーム", classType: "MAGE", rarity: "epic", tags: ["AOE", "MULTI"], cost: 2, maxCopies: 2,
+    description: "敵全体に魔法攻撃45%×2ヒット。", hits: [
+      { percent: 0.45, targets: "all", damageType: "magic" }, { percent: 0.45, targets: "all", damageType: "magic" }] },
+  { id: "mg_resonance_burst", name: "共鳴爆発", classType: "MAGE", rarity: "epic", tags: ["AOE", "RESONANCE"], cost: 2, maxCopies: 2,
+    description: "敵全体に魔法攻撃80%ダメージ（魔力共鳴で自動的にさらに強化される）。",
+    hits: [{ percent: 0.8, targets: "all", damageType: "magic" }] },
+  { id: "mg_soul_drain", name: "ソウルドレイン", classType: "MAGE", rarity: "rare", tags: ["HP", "DAMAGE"], cost: 1, maxCopies: 3,
+    description: "魔法攻撃120%。与えたダメージの15%を回復。", hits: [{ percent: 1.2, targets: "single", damageType: "magic" }],
+    effectId: "lifesteal_from_hit", effectValue: 0.15 },
+];
+
+const ALL_BATTLE_CARDS = [...COMMON_BATTLE_CARDS, ...SWORDSMAN_BATTLE_CARDS, ...MAGE_BATTLE_CARDS];

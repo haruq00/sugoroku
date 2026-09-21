@@ -10,12 +10,16 @@
 
 const ASSET_PATHS = {
   player_idle: "assets/player/player_idle.png",
+  player_run_1: "assets/player/player_run_1.png",
+  player_run_2: "assets/player/player_run_2.png",
+  player_attack: "assets/player/player_attack.png",
 
   slime: "assets/monsters/slime.png",
   goblin: "assets/monsters/goblin.png",
   orc: "assets/monsters/orc.png",
   golem: "assets/monsters/golem.png",
 
+  tile_start: "assets/tiles/start.png",
   tile_enemy: "assets/tiles/enemy.png",
   tile_gold: "assets/tiles/gold.png",
   tile_negative: "assets/tiles/negative.png",
@@ -23,26 +27,42 @@ const ASSET_PATHS = {
   tile_danger: "assets/tiles/danger.png",
   tile_goal: "assets/tiles/goal.png",
   tile_shop: "assets/tiles/shop.png",
+  tile_heal: "assets/tiles/heal.png",
 
   ui_coin: "assets/ui/coin.png",
   ui_medal: "assets/ui/medal.png",
   ui_dice: "assets/ui/dice.png",
+
+  character_swordsman: "assets/characters/swordsman.png",
+  character_mage: "assets/characters/mage.png",
+  boss1: "assets/monsters/boss1.png",
+  boss2: "assets/monsters/boss2.png",
 };
 
-// パッシブ／カード／お守り／武器の画像パスは、config.jsのidから自動的に組み立てる。
-// 例：id "passive_power" → assets/passives/passive_power.png
-// 画像を用意したい場合はこのパスに置くだけで、選択画面やMENU・ショップ画面に反映されます。
-(CONFIG.PASSIVES || []).forEach((p) => {
-  ASSET_PATHS[p.id] = `assets/passives/${p.id}.png`;
-});
-(CONFIG.CARDS || []).forEach((c) => {
-  ASSET_PATHS[c.id] = `assets/cards/${c.id}.png`;
-});
-(CONFIG.OMAMORI || []).forEach((o) => {
-  ASSET_PATHS[o.id] = `assets/omamori/${o.id}.png`;
-});
-(CONFIG.WEAPONS || []).forEach((w) => {
+// お守り／武器／防具／ステータスカード／盤面カード／戦闘カード／Bossパッシブの
+// 画像パスは、各データのidから自動的に組み立てる（id → assets/<種類>/<id>.png）。
+// 画像を用意したい場合はこのパスに置くだけで反映される。新しいカード/装備を
+// 追加してもここは変更不要（データ配列にidを足すだけで自動登録される）。
+(typeof ALL_WEAPONS !== "undefined" ? ALL_WEAPONS : []).forEach((w) => {
   ASSET_PATHS[w.id] = `assets/weapons/${w.id}.png`;
+});
+(typeof ARMOR_LIST !== "undefined" ? ARMOR_LIST : []).forEach((a) => {
+  ASSET_PATHS[a.id] = `assets/armor/${a.id}.png`;
+});
+(typeof CHARM_LIST !== "undefined" ? CHARM_LIST : []).forEach((c) => {
+  ASSET_PATHS[c.id] = `assets/charms/${c.id}.png`;
+});
+(typeof STAT_CARDS !== "undefined" ? STAT_CARDS : []).forEach((c) => {
+  ASSET_PATHS[c.id] = `assets/statcards/${c.id}.png`;
+});
+(typeof ALL_BATTLE_CARDS !== "undefined" ? ALL_BATTLE_CARDS : []).forEach((c) => {
+  ASSET_PATHS[c.id] = `assets/battlecards/${c.id}.png`;
+});
+(typeof BOARD_CARDS !== "undefined" ? BOARD_CARDS : []).forEach((c) => {
+  ASSET_PATHS[c.id] = `assets/boardcards/${c.id}.png`;
+});
+(typeof BOSS1_PASSIVES !== "undefined" ? BOSS1_PASSIVES : []).forEach((p) => {
+  ASSET_PATHS[p.id] = `assets/passives/${p.id}.png`;
 });
 
 const AssetManager = {

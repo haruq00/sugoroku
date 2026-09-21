@@ -139,13 +139,14 @@ const Board = {
 
   getTileAssetKey(type) {
     switch (type) {
-      case "start": return "tile_goal";
+      case "start": return "tile_start";
       case "enemy": return "tile_enemy";
       case "gold": return "tile_gold";
       case "negative": return "tile_negative";
       case "special_treasure": return "tile_treasure";
       case "special_danger": return "tile_danger";
       case "shop": return "tile_shop";
+      case "heal": return "tile_heal";
       default: return null;
     }
   },
@@ -164,7 +165,8 @@ const Board = {
   },
 
   // steps分だけ1マスずつアニメーションしながら移動する。
-  // onStep(newIndex, passedGoal) が1マス進むごとに呼ばれる。
+  // onStep(newIndex, passedGoal, isFinalStep) が1マス進むごとに呼ばれる
+  // （isFinalStep=falseの間は「通過」、true の時だけ「停止」）。
   // onComplete() が全ての移動が終わった後に呼ばれる。
   movePlayer(steps, onStep, onComplete) {
     if (!this.tileTypes || this.tileTypes.length === 0) {
@@ -185,12 +187,15 @@ const Board = {
       const prevIndex = this.currentIndex;
       this.currentIndex = (this.currentIndex + 1) % this.tileTypes.length;
       const passedGoal = this.currentIndex === 0 && prevIndex !== 0;
+      const isFinalStep = remaining === 1;
 
       this.updatePlayerTokenPosition();
-      EventHooks.trigger("onMoveStep", { index: this.currentIndex, passedGoal });
+      this.flashTile(this.currentIndex);
+      if (passedGoal) this.flashGoalTile();
+      EventHooks.trigger("onMoveStep", { index: this.currentIndex, passedGoal, isFinalStep });
 
       remaining -= 1;
-      onStep && onStep(this.currentIndex, passedGoal);
+      onStep && onStep(this.currentIndex, passedGoal, isFinalStep);
       setTimeout(stepOnce, stepDelay);
     };
 
@@ -199,5 +204,68 @@ const Board = {
 
   getCurrentTileType() {
     return this.tileTypes[this.currentIndex];
+  },
+
+  // ---------------------------------------------------------
+  // 未来位置表示：現在位置から1〜6マス進んだ場合の停止マスを返す。
+  // サイコロを振る前に「3ならGold」「4なら敵」などを確認できるようにする。
+  // ---------------------------------------------------------
+  getFuturePositions() {
+    const results = [];
+    for (let steps = 1; steps <= 6; steps++) {
+      const index = (this.currentIndex + steps) % this.tileTypes.length;
+      results.push({ steps, index, type: this.tileTypes[index] });
+    }
+    return results;
+  },
+
+  // ---------------------------------------------------------
+  // 盤面改造（すごろくカード「開拓」「商業化」など）。
+  // fromTypeのマスをランダムに1つ選び、toTypeへ恒久的に書き換える。
+  // 見た目（絵文字・仮表示クラス）もその場で更新する。
+  // ---------------------------------------------------------
+  convertRandomTile(fromType, toType) {
+    const candidates = [];
+    this.tileTypes.forEach((t, i) => { if (t === fromType && i !== this.currentIndex) candidates.push(i); });
+    if (candidates.length === 0) return false;
+
+    const index = candidates[Math.floor(Math.random() * candidates.length)];
+    this.tileTypes[index] = toType;
+
+    const el = this.tileElements[index];
+    if (el) {
+      const visualClass = this.getTileVisualClass(toType);
+      el.className = `tile tile-${visualClass}`;
+      el.textContent = this.getTileLabel(toType);
+      el.classList.remove("has-image");
+      const assetKey = this.getTileAssetKey(toType);
+      if (assetKey) AssetManager.applyToElement(el, assetKey, `tile-fallback-${visualClass}`);
+    }
+    return true;
+  },
+
+  // 将来の分岐ルート対応の入口（現時点では単一ループのみ）。
+  // boardSystem側でbranchを追加できるよう、データ構造だけ用意しておく。
+  //   branches: [{ atIndex, options: [{ tileTypes: [...] }, ...] }]
+  branches: [],
+
+  // 通過・到着したマスを一瞬発光させる（移動していることが分かりやすいように）
+  flashTile(index) {
+    const el = this.tileElements[index];
+    if (!el) return;
+    el.classList.remove("tile-glow");
+    void el.offsetWidth; // 強制リフローでアニメーションをリセットする
+    el.classList.add("tile-glow");
+    setTimeout(() => el.classList.remove("tile-glow"), 260);
+  },
+
+  // START/GOALマスをより目立つ発光で光らせる（周回時の演出用）
+  flashGoalTile() {
+    const el = this.tileElements[0];
+    if (!el) return;
+    el.classList.remove("tile-glow-goal");
+    void el.offsetWidth;
+    el.classList.add("tile-glow-goal");
+    setTimeout(() => el.classList.remove("tile-glow-goal"), 500);
   },
 };
